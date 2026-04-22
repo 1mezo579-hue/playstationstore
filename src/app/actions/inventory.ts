@@ -1,33 +1,25 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { revalidatePath } from "next/cache";
 
 export async function ensureBranchExists() {
   // 1. Ensure Branch
-  let branch = await prisma.branch.findFirst({
-    where: { name: "الفرع الرئيسي" }
-  });
+  let { data: branch, error } = await supabase
+    .from('Branch')
+    .select('*')
+    .eq('name', 'الفرع الرئيسي')
+    .single();
 
-  if (!branch) {
-    branch = await prisma.branch.create({
-      data: {
-        name: "الفرع الرئيسي",
-        location: "وسط البلد",
-      }
-    });
-  }
-
-  // 2. Seed Users if none exist
-  const userCount = await prisma.user.count();
-  if (userCount === 0) {
-    await prisma.user.createMany({
-      data: [
-        { name: 'إسلام (الأونر)', username: 'admin', password: '102030', role: 'OWNER' },
-        { name: 'مسئول الصيانة', username: 'tech', password: 'tech123', role: 'MAINTENANCE' },
-        { name: 'البائع', username: 'sales', password: 'sales123', role: 'SELLER' }
-      ]
-    });
+  if (error || !branch) {
+    const { data: newBranch, error: createError } = await supabase
+      .from('Branch')
+      .insert([{ name: 'الفرع الرئيسي', location: 'وسط البلد' }])
+      .select()
+      .single();
+    
+    if (createError) throw createError;
+    branch = newBranch;
   }
 
   return branch;
@@ -35,52 +27,50 @@ export async function ensureBranchExists() {
 
 export async function getInventoryItems() {
   try {
-    return await prisma.inventoryItem.findMany({
-      orderBy: { createdAt: 'desc' }
-    });
+    const { data, error } = await supabase
+      .from('InventoryItem')
+      .select('*')
+      .order('createdAt', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
   } catch (error) {
-    console.error("Error fetching inventory:", error);
+    console.error("Error fetching inventory (SDK):", error);
     return [];
   }
 }
 
-export async function addInventoryItem(data: {
-  name: string;
-  category: string;
-  condition: string;
-  quantity: number;
-  buyPrice: number;
-  sellPrice: number;
-  serialNumber?: string;
-  barcode?: string;
-}) {
+export async function addInventoryItem(data: any) {
   try {
     const branch = await ensureBranchExists();
+    const id = `item_${Date.now()}`;
 
-    const item = await prisma.inventoryItem.create({
-      data: {
-        ...data,
-        branchId: branch.id,
-      }
-    });
+    const { error } = await supabase
+      .from('InventoryItem')
+      .insert([{ 
+        ...data, 
+        id,
+        branchId: branch?.id || 1 
+      }]);
 
-    revalidatePath("/");
-    return { success: true, item };
+    if (error) throw error;
+    revalidatePath("/dashboard");
+    return { success: true };
   } catch (error: any) {
-    console.error("Error adding item:", error);
-    if (error?.code === 'P2002') {
-      return { success: false, error: "هذا السيريال أو الباركود موجود مسبقاً!" };
-    }
+    console.error("Error adding item (SDK):", error);
     return { success: false, error: "حدث خطأ أثناء إضافة الصنف." };
   }
 }
 
 export async function deleteInventoryItem(id: string) {
   try {
-    await prisma.inventoryItem.delete({
-      where: { id }
-    });
-    revalidatePath("/");
+    const { error } = await supabase
+      .from('InventoryItem')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    revalidatePath("/dashboard");
     return { success: true };
   } catch (error) {
     return { success: false, error: "حدث خطأ أثناء الحذف." };

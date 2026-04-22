@@ -1,17 +1,20 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { revalidatePath } from "next/cache";
 
 export async function getPOSItems() {
   try {
-    // Only fetch items that are in stock
-    return await prisma.inventoryItem.findMany({
-      where: { quantity: { gt: 0 } },
-      orderBy: { name: 'asc' }
-    });
+    const { data, error } = await supabase
+      .from('InventoryItem')
+      .select('*')
+      .gt('quantity', 0)
+      .order('name', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
   } catch (error) {
-    console.error("Error fetching POS items:", error);
+    console.error("Error fetching POS items (SDK):", error);
     return [];
   }
 }
@@ -28,46 +31,50 @@ export async function processSale({
   tradeInAmount?: number;
 }) {
   try {
-    // Start a transaction to create sale and update inventory
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Create the sale record
-      const sale = await tx.sale.create({
-        data: {
-          branchId,
-          totalAmount,
-          tradeInValue: tradeInAmount,
-          // discount: 0
-        }
-      });
+    // 1. Create Sale Record
+    const { data: sale, error: saleError } = await supabase
+      .from('Sale')
+      .insert([{
+        branchId: branchId || 1,
+        totalAmount,
+        tradeInValue: tradeInAmount
+      }])
+      .select()
+      .single();
 
-      // 2. Create Sale Items and update inventory
-      for (const item of items) {
-        // Create SaleItem
-        await tx.saleItem.create({
-          data: {
-            saleId: sale.id,
-            inventoryItemId: item.id,
-            quantity: item.quantity,
-            price: item.price
-          }
-        });
+    if (saleError) throw saleError;
 
-        // Update Inventory Quantity
-        await tx.inventoryItem.update({
-          where: { id: item.id },
-          data: {
-            quantity: { decrement: item.quantity }
-          }
-        });
+    // 2. Process items
+    for (const item of items) {
+      // Create SaleItem
+      await supabase
+        .from('SaleItem')
+        .insert([{
+          saleId: sale.id,
+          inventoryItemId: item.id,
+          quantity: item.quantity,
+          price: item.price
+        }]);
+
+      // Update Inventory Quantity (Manual decrement)
+      const { data: currentItem } = await supabase
+        .from('InventoryItem')
+        .select('quantity')
+        .eq('id', item.id)
+        .single();
+      
+      if (currentItem) {
+        await supabase
+          .from('InventoryItem')
+          .update({ quantity: currentItem.quantity - item.quantity })
+          .eq('id', item.id);
       }
+    }
 
-      return sale;
-    });
-
-    revalidatePath("/");
-    return { success: true, saleId: result.id };
+    revalidatePath("/dashboard");
+    return { success: true, saleId: sale.id };
   } catch (error) {
-    console.error("Sale processing error:", error);
+    console.error("Sale processing error (SDK):", error);
     return { success: false, error: "فشلت عملية البيع، يرجى المحاولة مرة أخرى." };
   }
 }
