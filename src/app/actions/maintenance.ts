@@ -1,76 +1,46 @@
 "use server";
 
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { ensureBranchExists } from "./inventory";
 
 export async function getMaintenanceTickets() {
   try {
-    const { data, error } = await supabase
-      .from('MaintenanceTicket')
-      .select('*, customer:Customer(*)')
-      .order('createdAt', { ascending: false });
-
-    if (error) throw error;
-    return data || [];
+    const tickets = db.prepare(`
+      SELECT mt.*, c.name as customerName, c.phone as customerPhone 
+      FROM MaintenanceTicket mt 
+      LEFT JOIN Customer c ON mt.customerId = c.id 
+      ORDER BY mt.createdAt DESC
+    `).all();
+    return tickets;
   } catch (error) {
-    console.error("Error fetching maintenance tickets (SDK):", error);
     return [];
   }
 }
 
 export async function createMaintenanceTicket(data: any) {
   try {
-    const branch = await ensureBranchExists();
-
-    // 1. Find or create customer
-    let { data: customer, error: customerError } = await supabase
-      .from('Customer')
-      .select('*')
-      .eq('phone', data.customerPhone)
-      .single();
-
-    if (customerError || !customer) {
-      const { data: newCustomer, error: createCustError } = await supabase
-        .from('Customer')
-        .insert([{ name: data.customerName, phone: data.customerPhone }])
-        .select()
-        .single();
-      
-      if (createCustError) throw createCustError;
-      customer = newCustomer;
+    // Find or create customer
+    let customer: any = db.prepare('SELECT * FROM Customer WHERE phone = ?').get(data.customerPhone);
+    if (!customer) {
+      const result = db.prepare('INSERT INTO Customer (name, phone) VALUES (?, ?)').run(data.customerName, data.customerPhone);
+      customer = { id: result.lastInsertRowid };
     }
 
-    // 2. Create ticket
-    const { error: ticketError } = await supabase
-      .from('MaintenanceTicket')
-      .insert([{
-        branchId: branch?.id || 1,
-        customerId: customer?.id,
-        deviceType: data.deviceType,
-        issue: data.issue,
-        cost: data.estimatedCost || 0,
-        status: "RECEIVED"
-      }]);
-
-    if (ticketError) throw ticketError;
+    db.prepare(`
+      INSERT INTO MaintenanceTicket (branchId, customerId, deviceType, issue, cost, status)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(1, customer.id, data.deviceType, data.issue, data.estimatedCost || 0, 'RECEIVED');
 
     revalidatePath("/dashboard");
     return { success: true };
   } catch (error) {
-    console.error("Error creating ticket (SDK):", error);
     return { success: false, error: "حدث خطأ أثناء إنشاء تذكرة الصيانة." };
   }
 }
 
 export async function updateTicketStatus(ticketId: number, status: string) {
   try {
-    const { error } = await supabase
-      .from('MaintenanceTicket')
-      .update({ status })
-      .eq('id', ticketId);
-
-    if (error) throw error;
+    db.prepare('UPDATE MaintenanceTicket SET status = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?').run(status, ticketId);
     revalidatePath("/dashboard");
     return { success: true };
   } catch (error) {

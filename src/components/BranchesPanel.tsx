@@ -75,17 +75,17 @@ export default function BranchesPanel() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
               <div style={{ textAlign: "center", padding: "12px", background: "var(--bg-dark)", borderRadius: "8px" }}>
                 <Package size={18} style={{ marginBottom: "4px", opacity: 0.7 }} />
-                <div style={{ fontSize: "1.1rem", fontWeight: "700" }}>{branch._count.items}</div>
+                <div style={{ fontSize: "1.1rem", fontWeight: "700" }}>{branch.itemCount || 0}</div>
                 <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>صنف</div>
               </div>
               <div style={{ textAlign: "center", padding: "12px", background: "var(--bg-dark)", borderRadius: "8px" }}>
                 <ShoppingCart size={18} style={{ marginBottom: "4px", opacity: 0.7 }} />
-                <div style={{ fontSize: "1.1rem", fontWeight: "700" }}>{branch._count.sales}</div>
+                <div style={{ fontSize: "1.1rem", fontWeight: "700" }}>{branch.saleCount || 0}</div>
                 <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>عملية بيع</div>
               </div>
               <div style={{ textAlign: "center", padding: "12px", background: "var(--bg-dark)", borderRadius: "8px" }}>
                 <Wrench size={18} style={{ marginBottom: "4px", opacity: 0.7 }} />
-                <div style={{ fontSize: "1.1rem", fontWeight: "700" }}>{branch._count.tickets}</div>
+                <div style={{ fontSize: "1.1rem", fontWeight: "700" }}>{branch.ticketCount || 0}</div>
                 <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>تذكرة صيانة</div>
               </div>
             </div>

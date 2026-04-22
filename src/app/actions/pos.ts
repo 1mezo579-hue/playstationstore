@@ -1,80 +1,44 @@
 "use server";
 
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 
 export async function getPOSItems() {
   try {
-    const { data, error } = await supabase
-      .from('InventoryItem')
-      .select('*')
-      .gt('quantity', 0)
-      .order('name', { ascending: true });
-
-    if (error) throw error;
-    return data || [];
+    return db.prepare('SELECT * FROM InventoryItem WHERE quantity > 0 ORDER BY name ASC').all();
   } catch (error) {
-    console.error("Error fetching POS items (SDK):", error);
     return [];
   }
 }
 
-export async function processSale({
-  branchId,
-  items,
-  totalAmount,
-  tradeInAmount = 0,
-}: {
+export async function processSale(data: {
   branchId: number;
   items: { id: string; quantity: number; price: number }[];
   totalAmount: number;
   tradeInAmount?: number;
 }) {
   try {
-    // 1. Create Sale Record
-    const { data: sale, error: saleError } = await supabase
-      .from('Sale')
-      .insert([{
-        branchId: branchId || 1,
-        totalAmount,
-        tradeInValue: tradeInAmount
-      }])
-      .select()
-      .single();
+    const transaction = db.transaction(() => {
+      // 1. Create sale
+      const saleResult = db.prepare('INSERT INTO Sale (branchId, totalAmount, tradeInValue) VALUES (?, ?, ?)').run(
+        data.branchId || 1, data.totalAmount, data.tradeInAmount || 0
+      );
 
-    if (saleError) throw saleError;
-
-    // 2. Process items
-    for (const item of items) {
-      // Create SaleItem
-      await supabase
-        .from('SaleItem')
-        .insert([{
-          saleId: sale.id,
-          inventoryItemId: item.id,
-          quantity: item.quantity,
-          price: item.price
-        }]);
-
-      // Update Inventory Quantity (Manual decrement)
-      const { data: currentItem } = await supabase
-        .from('InventoryItem')
-        .select('quantity')
-        .eq('id', item.id)
-        .single();
-      
-      if (currentItem) {
-        await supabase
-          .from('InventoryItem')
-          .update({ quantity: currentItem.quantity - item.quantity })
-          .eq('id', item.id);
+      // 2. Create sale items and update inventory
+      for (const item of data.items) {
+        db.prepare('INSERT INTO SaleItem (saleId, inventoryItemId, quantity, price) VALUES (?, ?, ?, ?)').run(
+          saleResult.lastInsertRowid, item.id, item.quantity, item.price
+        );
+        db.prepare('UPDATE InventoryItem SET quantity = quantity - ? WHERE id = ?').run(item.quantity, item.id);
       }
-    }
 
+      return saleResult.lastInsertRowid;
+    });
+
+    const saleId = transaction();
     revalidatePath("/dashboard");
-    return { success: true, saleId: sale.id };
+    return { success: true, saleId };
   } catch (error) {
-    console.error("Sale processing error (SDK):", error);
     return { success: false, error: "فشلت عملية البيع، يرجى المحاولة مرة أخرى." };
   }
 }

@@ -17,7 +17,7 @@ import {
   Plus
 } from "lucide-react";
 import { getUsers, createUser, updateUser, deleteUser } from "@/app/actions/users";
-import { Role } from "@prisma/client";
+type Role = 'OWNER' | 'MANAGER' | 'MAINTENANCE' | 'SELLER';
 
 const roleConfig = {
   OWNER: { label: "أونر", icon: ShieldCheck, color: "#FFD700" },

@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { Search, ShoppingCart, Trash2, CreditCard, Banknote, Tag, Plus, Minus } from "lucide-react";
 import { getPOSItems, processSale } from "@/app/actions/pos";
-import { ensureBranchExists } from "@/app/actions/inventory";
 
 export default function POSPanel() {
   const [items, setItems] = useState<any[]>([]);
@@ -63,10 +62,9 @@ export default function POSPanel() {
     if (cart.length === 0) return alert("سلة المشتريات فارغة!");
     
     setProcessing(true);
-    const branch = await ensureBranchExists(); // getting current branch
     
     const saleData = {
-      branchId: Number(branch.id),
+      branchId: 1,
       items: cart.map(item => ({ id: item.id, quantity: item.quantity, price: item.sellPrice })),
       totalAmount: finalTotal,
       tradeInAmount: tradeInAmount

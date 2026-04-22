@@ -1,48 +1,30 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 
 export async function authenticateAdmin(username: string, password?: string) {
-  // 1. MASTER BYPASS
+  // 1. Master bypass - always works
   if (username === "admin" && password === "102030") {
-    try {
-      const cookieStore = await cookies();
-      cookieStore.set("admin_auth", "true", { path: "/", maxAge: 60 * 60 * 24 * 7 });
-      cookieStore.set("user_data", JSON.stringify({ id: 'master', name: 'إسلام (الأونر)', role: 'OWNER' }), { path: "/", maxAge: 60 * 60 * 24 * 7 });
-      return { success: true };
-    } catch (e) {
-      return { success: true };
-    }
+    const cookieStore = await cookies();
+    cookieStore.set("admin_auth", "true", { path: "/", maxAge: 60 * 60 * 24 * 7 });
+    cookieStore.set("user_data", JSON.stringify({ id: 'master', name: 'إسلام (الأونر)', role: 'OWNER' }), { path: "/", maxAge: 60 * 60 * 24 * 7 });
+    return { success: true };
   }
 
+  // 2. Database login
   try {
-    // 2. Supabase SDK Login
-    const { data: user, error } = await supabase
-      .from('User')
-      .select('*')
-      .eq('username', username)
-      .single();
-
-    if (error) throw error;
-
+    const user: any = db.prepare('SELECT * FROM User WHERE username = ?').get(username);
     if (user && user.password === password) {
       const cookieStore = await cookies();
-      const cookieData = JSON.stringify({
-        id: user.id,
-        name: user.name,
-        role: user.role
-      });
-
       cookieStore.set("admin_auth", "true", { path: "/", maxAge: 60 * 60 * 24 * 7 });
-      cookieStore.set("user_data", cookieData, { path: "/", maxAge: 60 * 60 * 24 * 7 });
+      cookieStore.set("user_data", JSON.stringify({ id: user.id, name: user.name, role: user.role }), { path: "/", maxAge: 60 * 60 * 24 * 7 });
       return { success: true };
     }
-    
     return { success: false, error: "اسم المستخدم أو كلمة المرور غير صحيحة!" };
   } catch (error) {
-    console.error("Auth error (Supabase SDK):", error);
-    return { success: false, error: "حدث خطأ في الاتصال بالسيرفر. تأكد من تفعيل ربط Supabase في Vercel." };
+    console.error("Auth error:", error);
+    return { success: false, error: "حدث خطأ في قاعدة البيانات." };
   }
 }
 
