@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Branch {
+  id        Int      @id @default(autoincrement())
+  name      String
+  location  String?
+  items     InventoryItem[]
+  sales     Sale[]
+  tickets   MaintenanceTicket[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model InventoryItem {
+  id           String   @id @default(uuid())
+  branchId     Int
+  branch       Branch   @relation(fields: [branchId], references: [id])
+  name         String
+  category     String   // CONSOLE, CONTROLLER, ACCESSORY, SPARE_PART
+  condition    String   @default("NEW") // NEW, USED
+  model        String?  // PS4_FAT, PS5_DISC, etc.
+  serialNumber String?  @unique
+  barcode      String?  @unique
+  buyPrice     Float
+  sellPrice    Float
+  quantity     Int      @default(0)
+  minStock     Int      @default(5)
+  
+  saleItems    SaleItem[]
+  ticketParts  TicketPart[]
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Supplier {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String?
+  purchases Purchase[]
+}
+
+model Purchase {
+  id          Int      @id @default(autoincrement())
+  supplierId  Int
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  totalAmount Float
+  date        DateTime @default(now())
+}
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String
+  sales     Sale[]
+  tickets   MaintenanceTicket[]
+}
+
+model Sale {
+  id           Int      @id @default(autoincrement())
+  branchId     Int
+  branch       Branch   @relation(fields: [branchId], references: [id])
+  customerId   Int?
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  totalAmount  Float
+  discount     Float    @default(0)
+  tradeInValue Float    @default(0)
+  vatAmount    Float    @default(0)
+  saleItems    SaleItem[]
+  createdAt    DateTime @default(now())
+}
+
+model SaleItem {
+  id              Int      @id @default(autoincrement())
+  saleId          Int
+  sale            Sale     @relation(fields: [saleId], references: [id])
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  quantity        Int
+  price           Float
+}
+
+model MaintenanceTicket {
+  id          Int      @id @default(autoincrement())
+  branchId    Int
+  branch      Branch   @relation(fields: [branchId], references: [id])
+  customerId  Int
+  customer    Customer @relation(fields: [customerId], references: [id])
+  deviceType  String
+  issue       String
+  status      String   @default("RECEIVED") // RECEIVED, DIAGNOSING, WAITING_PARTS, REPAIRED, DELIVERED
+  cost        Float    @default(0)
+  partsUsed   TicketPart[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model TicketPart {
+  id              Int      @id @default(autoincrement())
+  ticketId        Int
+  ticket          MaintenanceTicket @relation(fields: [ticketId], references: [id])
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  quantity        Int
+  price           Float
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  MAINTENANCE
+  SELLER
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  username  String   @unique
+  password  String   // In a real app, this should be hashed
+  role      Role     @default(SELLER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

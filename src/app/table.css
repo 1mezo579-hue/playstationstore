@@ -1,0 +1,80 @@
+/* Data Table Styles */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: right;
+}
+
+.data-table th {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.9rem;
+  background-color: rgba(2, 6, 23, 0.4);
+}
+
+.data-table td {
+  padding: 16px;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  vertical-align: middle;
+}
+
+.data-table tr:hover td {
+  background-color: rgba(51, 65, 85, 0.2);
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Badges */
+.badge-tag {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 100px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background-color: rgba(100, 116, 139, 0.2);
+  color: var(--text-primary);
+}
+
+.badge-success {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: var(--accent-success);
+}
+
+.badge-warning {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: var(--accent-warning);
+}
+
+.badge-danger {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: var(--accent-danger);
+}
+
+/* Small Icon Buttons */
+.icon-btn-small {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background-color: rgba(51, 65, 85, 0.5);
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+
+.icon-btn-small:hover {
+  background-color: var(--ps-blue);
+  color: white;
+}
+
+.icon-btn-small.delete:hover {
+  background-color: var(--accent-danger);
+  color: white;
+}
