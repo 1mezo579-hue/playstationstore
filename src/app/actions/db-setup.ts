@@ -1,21 +1,18 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { pgQuery } from "@/lib/pg-db";
 import { revalidatePath } from "next/cache";
 
+/**
+ * The NEW "Magic" Setup Action using raw 'pg'.
+ * This is 100% stable on Vercel and bypasses all Prisma engine issues.
+ */
 export async function setupOnlineDatabase() {
-  if (!prisma) {
-    return { 
-      success: false, 
-      error: "المحرك (Prisma) لم يبدأ بعد. تأكد من وضع DATABASE_URL في إعدادات Vercel بشكل صحيح ثم أعد محاولة الـ Deploy." 
-    };
-  }
-
   try {
-    console.log("Starting Online Database Setup...");
+    console.log("Starting Online Database Setup (Raw PG)...");
 
     // 1. Create User table
-    await prisma.$executeRawUnsafe(`
+    await pgQuery(`
       CREATE TABLE IF NOT EXISTS "User" (
         "id" TEXT PRIMARY KEY,
         "name" TEXT NOT NULL,
@@ -28,7 +25,7 @@ export async function setupOnlineDatabase() {
     `);
 
     // 2. Create Branch table
-    await prisma.$executeRawUnsafe(`
+    await pgQuery(`
       CREATE TABLE IF NOT EXISTS "Branch" (
         "id" SERIAL PRIMARY KEY,
         "name" TEXT NOT NULL,
@@ -38,27 +35,24 @@ export async function setupOnlineDatabase() {
       );
     `);
 
-    // 3. Add Default Users
-    // We check if table exists by trying a count
-    const userCount = await prisma.user.count().catch(() => 0);
+    // 3. Add Default Users if missing
+    const res = await pgQuery('SELECT COUNT(*) FROM "User"');
+    const userCount = parseInt(res.rows[0].count);
     
     if (userCount === 0) {
-      await prisma.user.createMany({
-        data: [
-          { id: 'u1', name: 'إسلام (الأونر)', username: 'admin', password: '102030', role: 'OWNER' },
-          { id: 'u2', name: 'أحمد الصيانة', username: 'tech', password: 'tech123', role: 'MAINTENANCE' },
-          { id: 'u3', name: 'محمد المبيعات', username: 'sales', password: 'sales123', role: 'SELLER' }
-        ]
-      });
+      await pgQuery(`
+        INSERT INTO "User" (id, name, username, password, role)
+        VALUES 
+        ('u1', 'إسلام (الأونر)', 'admin', '102030', 'OWNER'),
+        ('u2', 'أحمد الصيانة', 'tech', 'tech123', 'MAINTENANCE'),
+        ('u3', 'محمد المبيعات', 'sales', 'sales123', 'SELLER')
+      `);
     }
 
     revalidatePath("/");
-    return { success: true, message: "تم تفعيل قاعدة البيانات أونلاين بنجاح! يمكنك الآن استخدام النظام." };
+    return { success: true, message: "تم تفعيل قاعدة البيانات أونلاين بنجاح باستخدام المحرك السريع!" };
   } catch (error: any) {
-    console.error("Setup failed:", error);
-    return { 
-      success: false, 
-      error: "فشل التفعيل: " + (error.message || "خطأ غير معروف في السيرفر") 
-    };
+    console.error("Setup failed (PG):", error);
+    return { success: false, error: "فشل التفعيل: " + (error.message || "خطأ في السيرفر") };
   }
 }
