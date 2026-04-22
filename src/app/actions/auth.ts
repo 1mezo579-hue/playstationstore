@@ -1,10 +1,10 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { pgQuery } from "@/lib/pg-db";
+import { supabase } from "@/lib/supabase";
 
 export async function authenticateAdmin(username: string, password?: string) {
-  // 1. MASTER BYPASS (Hardcoded for maximum reliability)
+  // 1. MASTER BYPASS
   if (username === "admin" && password === "102030") {
     try {
       const cookieStore = await cookies();
@@ -12,14 +12,19 @@ export async function authenticateAdmin(username: string, password?: string) {
       cookieStore.set("user_data", JSON.stringify({ id: 'master', name: 'إسلام (الأونر)', role: 'OWNER' }), { path: "/", maxAge: 60 * 60 * 24 * 7 });
       return { success: true };
     } catch (e) {
-      return { success: true }; // Still let them in
+      return { success: true };
     }
   }
 
   try {
-    // 2. Database Login using raw PG
-    const res = await pgQuery('SELECT * FROM "User" WHERE username = $1', [username]);
-    const user = res.rows[0];
+    // 2. Supabase SDK Login
+    const { data: user, error } = await supabase
+      .from('User')
+      .select('*')
+      .eq('username', username)
+      .single();
+
+    if (error) throw error;
 
     if (user && user.password === password) {
       const cookieStore = await cookies();
@@ -36,8 +41,8 @@ export async function authenticateAdmin(username: string, password?: string) {
     
     return { success: false, error: "اسم المستخدم أو كلمة المرور غير صحيحة!" };
   } catch (error) {
-    console.error("Auth error (PG):", error);
-    return { success: false, error: "النظام قيد التحديث أونلاين. جرب حساب الأونر." };
+    console.error("Auth error (Supabase SDK):", error);
+    return { success: false, error: "حدث خطأ في الاتصال بالسيرفر. تأكد من تفعيل ربط Supabase في Vercel." };
   }
 }
 
