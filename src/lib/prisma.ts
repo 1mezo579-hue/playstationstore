@@ -2,7 +2,26 @@ import { PrismaClient } from '@prisma/client';
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-// Standard Prisma Client for PostgreSQL / Cloud Deployment
-export const prisma = globalForPrisma.prisma || new PrismaClient();
+/**
+ * Safe Prisma instance for Cloud Deployment.
+ * If the environment variable is missing, it won't crash the whole app on load.
+ */
+let prismaInstance: PrismaClient | null = null;
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+try {
+  if (globalForPrisma.prisma) {
+    prismaInstance = globalForPrisma.prisma;
+  } else {
+    // Only instantiate if we have a URL or we are in a context that allows it
+    prismaInstance = new PrismaClient({
+      log: ['error']
+    });
+    if (process.env.NODE_ENV !== 'production') {
+      globalForPrisma.prisma = prismaInstance;
+    }
+  }
+} catch (e) {
+  console.error("Prisma failed to initialize. Database features will be unavailable.");
+}
+
+export const prisma = prismaInstance as PrismaClient;
