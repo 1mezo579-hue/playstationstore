@@ -1,22 +1,27 @@
 import { Pool } from 'pg';
+import { ONLINE_DB_URL } from './config';
 
 /**
- * Standard PostgreSQL Pool for Cloud Deployment (Vercel + Supabase).
- * This replaces Prisma for core operations to ensure 100% stability.
+ * Standard PostgreSQL Pool for Cloud Deployment.
+ * Uses environment variable first, then falls back to the hardcoded URL in config.ts.
  */
+const connectionString = process.env.DATABASE_URL || ONLINE_DB_URL;
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: connectionString,
   ssl: {
-    rejectUnauthorized: false // Required for Supabase/Neon
+    rejectUnauthorized: false
   }
 });
 
 export const pgQuery = async (text: string, params?: any[]) => {
+  if (!connectionString || connectionString.includes("ضع_الرابط_هنا")) {
+    throw new Error("رابط قاعدة البيانات غير موجود. يرجى وضعه في ملف src/lib/config.ts");
+  }
+
   const start = Date.now();
   try {
     const res = await pool.query(text, params);
-    const duration = Date.now() - start;
-    console.log('Executed query', { text, duration, rows: res.rowCount });
     return res;
   } catch (err) {
     console.error('Query error', err);
