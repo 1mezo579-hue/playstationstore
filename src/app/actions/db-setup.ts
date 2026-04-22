@@ -3,15 +3,18 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
-/**
- * The "Magic" Setup Action.
- * Creates all tables and default users directly from the web interface.
- */
 export async function setupOnlineDatabase() {
+  if (!prisma) {
+    return { 
+      success: false, 
+      error: "المحرك (Prisma) لم يبدأ بعد. تأكد من وضع DATABASE_URL في إعدادات Vercel بشكل صحيح ثم أعد محاولة الـ Deploy." 
+    };
+  }
+
   try {
     console.log("Starting Online Database Setup...");
 
-    // 1. Create User table using raw SQL (Safe for PostgreSQL/Supabase)
+    // 1. Create User table
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "User" (
         "id" TEXT PRIMARY KEY,
@@ -35,8 +38,10 @@ export async function setupOnlineDatabase() {
       );
     `);
 
-    // 3. Add Default Users if missing
-    const userCount = await prisma.user.count();
+    // 3. Add Default Users
+    // We check if table exists by trying a count
+    const userCount = await prisma.user.count().catch(() => 0);
+    
     if (userCount === 0) {
       await prisma.user.createMany({
         data: [
@@ -48,9 +53,12 @@ export async function setupOnlineDatabase() {
     }
 
     revalidatePath("/");
-    return { success: true, message: "تم تفعيل قاعدة البيانات أونلاين بنجاح!" };
+    return { success: true, message: "تم تفعيل قاعدة البيانات أونلاين بنجاح! يمكنك الآن استخدام النظام." };
   } catch (error: any) {
     console.error("Setup failed:", error);
-    return { success: false, error: "فشل التفعيل: " + error.message };
+    return { 
+      success: false, 
+      error: "فشل التفعيل: " + (error.message || "خطأ غير معروف في السيرفر") 
+    };
   }
 }
